@@ -317,7 +317,7 @@ input,select,textarea{font:inherit}
       <div class="dots"><span style="background:var(--c-blue);color:var(--c-blue)"></span><span style="background:var(--c-yellow);color:var(--c-yellow)"></span><span style="background:var(--c-green);color:var(--c-green)"></span><span style="background:var(--c-red);color:var(--c-red)"></span><span style="background:#111;color:#a855f7;border:2px solid #a855f7"></span></div>
       <div class="sub">青春期、人際關係與身體界線。擲骰走地圖，停在哪個顏色就翻同色牌卡，完成挑戰就能拿金幣。<br>校園情境擴充題卡：等待、拒絕、身體界線、隱私與求助。</div>
       <div class="opt-row"><b>遊戲長度</b><span id="optRounds"></span></div>
-      <div class="opt-row"><b>作答方式</b><span id="optChoice"></span></div>
+      <div class="opt-row"><b>遊戲版本</b><span id="optChoice"></span></div>
       <div class="opt-row"><b>朗讀題目</b><span id="optRead"></span></div>
       <div class="opt-row"><b>知識卡計時</b><span id="optSec"></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px" class="title-btns">
@@ -720,7 +720,8 @@ function renderTitleOpts() {
     $(id).innerHTML = list.map(([v, l]) => `<button class="chip ${Settings[key] === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join(' ');
     $(id).querySelectorAll('[data-v]').forEach(b => b.onclick = () => { SFX.click(); Settings[key] = b.dataset.v === 'true'; Settings.save(); renderTitleOpts(); });
   };
-  chip('optChoice', [[true, '選擇題（看選項點選）'], [false, '口頭回答（帶領者判定）']], 'choice');
+  $('optChoice').innerHTML = [[false, '一般版'], [true, '特教版']].map(([v, l]) => `<button class="chip ${Settings.choice === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join(' ');
+  $('optChoice').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { SFX.click(); Settings.choice = b.dataset.v === 'true'; Settings.autoRead = Settings.choice; Settings.save(); renderTitleOpts(); });
   chip('optRead', [[true, '翻牌自動朗讀'], [false, '按 🔊 才朗讀']], 'autoRead');
   $('optSec').closest('.opt-row').style.display = Settings.choice ? 'none' : '';
 }
