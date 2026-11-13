@@ -281,6 +281,30 @@ input,select,textarea{font:inherit}
 .color-list{display:grid;gap:8px}
 .color-list div{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.05);border-left:6px solid var(--cc);font-size:14px;line-height:1.6;color:var(--muted)}
 .color-list b{color:#fff;white-space:nowrap}
+/* 選擇題、朗讀、音樂 */
+.card-q .read-btn{vertical-align:middle;margin-left:6px}
+.read-btn{border:0;border-radius:999px;background:var(--cc);color:#fff;font-weight:900;font-size:16px;padding:6px 14px;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.read-btn:active{transform:translateY(2px);box-shadow:none}
+.ch-title{font-weight:900;color:#374151;margin:14px 0 6px;font-size:18px}
+.choices{display:grid;gap:10px;margin:4px 0}
+.ch{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:16px;border:3px solid #d1d5db;background:#f9fafb;color:#111827;font-size:clamp(18px,2.6vw,21px);font-weight:800;line-height:1.45;cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+.ch:hover{border-color:var(--cc)}
+.ch:focus-visible{outline:4px solid var(--cc);outline-offset:2px}
+.ch-n{flex:0 0 42px;height:42px;border-radius:50%;background:var(--cc);color:#fff;display:grid;place-items:center;font-size:21px;font-weight:900}
+.ch-t{flex:1}
+.ch-say{flex:0 0 auto;border:0;background:#e5e7eb;border-radius:12px;font-size:20px;padding:8px 10px;cursor:pointer}
+.ch.right{border-color:#16a34a;background:#dcfce7}
+.ch.right .ch-n{background:#16a34a}
+.ch.wrong{opacity:.5;border-color:#fca5a5;background:#fef2f2;cursor:default;animation:chShake .35s}
+.ch.locked{cursor:default}
+@keyframes chShake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.ch-msg{min-height:30px;font-size:21px;font-weight:900;text-align:center;margin:8px 0 2px}
+.ch-msg.good{color:#16a34a}.ch-msg.try{color:#b45309}
+.feel{display:flex;flex-wrap:wrap;gap:8px}
+.feel button{padding:10px 14px;border-radius:999px;border:3px solid #d1d5db;background:#fff;font-size:18px;font-weight:800;color:#111827;cursor:pointer}
+.feel button.on{border-color:var(--cc);background:#dcfce7}
+.lead-ovr{margin-top:14px;font-size:14px;color:#6b7280}
+.lead-ovr summary{cursor:pointer;padding:4px 0}
 </style>
 </head>
 <body>
@@ -293,11 +317,14 @@ input,select,textarea{font:inherit}
       <div class="dots"><span style="background:var(--c-blue);color:var(--c-blue)"></span><span style="background:var(--c-yellow);color:var(--c-yellow)"></span><span style="background:var(--c-green);color:var(--c-green)"></span><span style="background:var(--c-red);color:var(--c-red)"></span><span style="background:#111;color:#a855f7;border:2px solid #a855f7"></span></div>
       <div class="sub">青春期、人際關係與身體界線。擲骰走地圖，停在哪個顏色就翻同色牌卡，完成挑戰就能拿金幣。<br>校園情境擴充題卡：等待、拒絕、身體界線、隱私與求助。</div>
       <div class="opt-row"><b>遊戲長度</b><span id="optRounds"></span></div>
-      <div class="opt-row"><b>知識卡作答</b><span id="optSec"></span></div>
+      <div class="opt-row"><b>作答方式</b><span id="optChoice"></span></div>
+      <div class="opt-row"><b>朗讀題目</b><span id="optRead"></span></div>
+      <div class="opt-row"><b>知識卡計時</b><span id="optSec"></span></div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px" class="title-btns">
         <button class="btn primary" id="btnStart" style="font-size:18px;padding:14px 28px">▶ 開始遊戲</button>
         <button class="btn" id="btnRulesT">📖 規則說明</button>
         <button class="btn" id="btnLeaderT">🧑‍🏫 帶領者設定</button>
+        <button class="btn bgm-btn" id="btnMusicT">🎵 音樂</button>
       </div>
     </div>
   </div>
@@ -310,6 +337,7 @@ input,select,textarea{font:inherit}
     <div class="g-round" id="roundLabel">第 1 輪</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <span class="zoom-bar"><button id="zOut" title="縮小地圖">－</button><button id="zFit" title="地圖符合畫面">🔍</button><button id="zIn" title="放大地圖">＋</button></span>
+      <button class="btn sm bgm-btn" id="btnMusic">🎵 音樂</button>
       <button class="btn sm" id="btnSound">🔊 音效</button>
       <button class="btn sm" id="btnRulesG">📖 規則</button>
       <button class="btn sm" id="btnLeaderG">🧑‍🏫 帶領者</button>
@@ -382,6 +410,69 @@ const SFX = {
 };
 
 /* ==========================================================
+   背景音樂（WebAudio 即時合成的原創輕快旋律，不需外部檔案）
+   ========================================================== */
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const BGM = {
+  on: store.get('bgm', true), playing: false, timer: null, next: 0, step: 0, gain: null, duck: 1, vol: .55,
+  CH: [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60], [60, 64, 67], [53, 57, 60], [55, 59, 62], [60, 64, 67]],
+  MEL: [76, 0, 79, 0, 76, 74, 72, 0, 74, 0, 71, 0, 74, 0, 0, 0, 72, 0, 76, 0, 81, 79, 76, 0, 77, 0, 76, 0, 72, 0, 0, 0,
+        76, 0, 79, 0, 84, 0, 81, 79, 77, 0, 81, 0, 79, 77, 76, 0, 74, 0, 76, 0, 74, 72, 71, 0, 72, 0, 0, 0, 0, 0, 0, 0],
+  start() {
+    if (!this.on || this.playing) return; SFX.init(); const c = SFX.ctx; if (!c) return;
+    this.gain = c.createGain(); this.gain.gain.value = 0; this.gain.connect(c.destination);
+    this.gain.gain.linearRampToValueAtTime(this.vol * this.duck, c.currentTime + 1.5);
+    this.playing = true; this.next = c.currentTime + .15; this.step = 0;
+    this.timer = setInterval(() => this.sched(), 100);
+  },
+  stop() {
+    if (!this.playing) return; clearInterval(this.timer); this.playing = false;
+    const c = SFX.ctx, g = this.gain; g.gain.cancelScheduledValues(c.currentTime); g.gain.setValueAtTime(g.gain.value, c.currentTime);
+    g.gain.linearRampToValueAtTime(0, c.currentTime + .4); setTimeout(() => g.disconnect(), 700);
+  },
+  toggle() { this.on = !this.on; store.set('bgm', this.on); this.on ? this.start() : this.stop(); renderBgmBtns(); },
+  setDuck(d) { this.duck = d; if (this.playing) { const c = SFX.ctx; this.gain.gain.cancelScheduledValues(c.currentTime); this.gain.gain.setTargetAtTime(this.vol * d, c.currentTime, .15); } },
+  note(f, t, dur, type, vol) {
+    const c = SFX.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .03);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur); o.connect(g).connect(this.gain); o.start(t); o.stop(t + dur + .05);
+  },
+  sched() {
+    const c = SFX.ctx, e = 60 / 92 / 2;
+    while (this.next < c.currentTime + .35) {
+      const s = this.step % 64, ch = this.CH[Math.floor(s / 8)];
+      if (s % 8 === 0) ch.forEach(m => this.note(mtof(m), this.next, e * 7.5, 'sine', .03));
+      if (s % 4 === 0) this.note(mtof(ch[0] - 12), this.next, e * 3, 'triangle', .07);
+      if (s % 4 === 2) this.note(mtof(ch[(s >> 2) % 3]), this.next, e * .9, 'sine', .018);
+      if (this.MEL[s]) this.note(mtof(this.MEL[s]), this.next, e * 1.9, 'triangle', .045);
+      this.next += e; this.step++;
+    }
+  }
+};
+function renderBgmBtns() { document.querySelectorAll('.bgm-btn').forEach(b => b.textContent = BGM.on ? '🎵 音樂開' : '🎵 音樂關'); }
+
+/* ==========================================================
+   朗讀（瀏覽器內建語音，繁體中文）
+   ========================================================== */
+const TTS = {
+  ok: 'speechSynthesis' in window, voice: null,
+  pick() {
+    if (!this.ok) return; const vs = speechSynthesis.getVoices();
+    this.voice = vs.find(v => /zh[-_]TW/i.test(v.lang)) || vs.find(v => /zh[-_](HK|Hant)/i.test(v.lang)) || vs.find(v => /^zh/i.test(v.lang)) || null;
+  },
+  speak(text) {
+    if (!this.ok) { toast('這台裝置不支援朗讀'); return; }
+    speechSynthesis.cancel(); if (!this.voice) this.pick();
+    const u = new SpeechSynthesisUtterance(String(text).replace(/[「」『』]/g, '，'));
+    u.lang = 'zh-TW'; if (this.voice) u.voice = this.voice; u.rate = .85;
+    u.onstart = () => BGM.setDuck(.25); u.onend = u.onerror = () => BGM.setDuck(1);
+    speechSynthesis.speak(u);
+  },
+  stop() { if (this.ok) speechSynthesis.cancel(); BGM.setDuck(1); }
+};
+if (TTS.ok) { TTS.pick(); speechSynthesis.onvoiceschanged = () => TTS.pick(); }
+
+/* ==========================================================
    角色（沿用魔法學園2 校園版七位魔法師當棋子）
    ========================================================== */
 const CHARS = [
@@ -411,85 +502,85 @@ const COLOR_KEYS = ['blue', 'yellow', 'green', 'red', 'black'];
 
 const BASE_CARDS = {
   blue: [
-    {"no": "01", "title": "想牽手", "q": "想牽同學的手打招呼，要先問他願不願意嗎？", "hint": "要。問完先等答覆，對方願意才牽手。"},
-    {"no": "02", "title": "沒有回答", "q": "你問「我可以一起玩嗎？」同學沒有回答。現在可以直接加入嗎？", "hint": "先等回應。也可以稍後再問，或先選別的活動。"},
-    {"no": "03", "title": "更衣的地方", "q": "運動後衣服濕了。你會在教室座位換衣服，還是到可以遮蔽的更衣空間？", "hint": "到可以遮蔽的更衣空間。需要協助時，可先跟信任的老師說。"},
-    {"no": "04", "title": "有人一直靠近", "q": "你已經說「請離我遠一點」，對方還是一直靠過來。可以退開並找老師幫忙嗎？", "hint": "可以。能離開就先到安全的地方，也可以用手勢、圖卡或呼叫求助。"},
-    {"no": "05", "title": "點頭和搖頭", "q": "同學搖頭表示不想擊掌，你要停下來嗎？", "hint": "要。搖頭也可以表示拒絕，可以改用揮手打招呼。"},
-    {"no": "06", "title": "答應後改變心意", "q": "同學剛才答應合照，現在說不想拍了，還可以繼續拍嗎？", "hint": "要停下來。對方可以改變心意。"},
-    {"no": "07", "title": "尊重溝通方式", "q": "同學用溝通板指出「先等等」，你可以等他準備好再繼續嗎？", "hint": "可以。溝通板的訊息同樣要尊重。"},
-    {"no": "08", "title": "有人堵在門口", "q": "同學擋在門口讓你出不去，你可以呼叫老師幫忙嗎？", "hint": "可以。先呼叫附近的大人協助。"},
-    {"no": "09", "title": "洗手間的門", "q": "洗手間隔間的門關著，你應該直接推門，還是先等候？", "hint": "先等候。可以看門鎖標示或輕聲詢問。"},
-    {"no": "10", "title": "可以拒絕起鬨", "q": "同學起鬨要你說出喜歡誰，你可以選擇保留嗎？", "hint": "可以。喜歡誰是個人的事。"},
-    {"no": "11", "title": "衣物沾到經血", "q": "衣物沾到經血時，可以請信任的大人幫忙找備用衣物或生理用品嗎？", "hint": "可以。可在有遮蔽的空間處理。"},
-    {"no": "12", "title": "青春期的變化", "q": "青春期時，每個人開始長高、變聲或長痘痘的時間會完全一樣嗎？", "hint": "不會。每個人變化的時間和速度可能不同。"},
-    {"no": "13", "title": "身體不舒服", "q": "有人開玩笑碰你，讓你不舒服，你可以請他停下嗎？", "hint": "可以。也可以離開或找信任的大人協助。"},
-    {"no": "14", "title": "休息也是選項", "q": "桌遊玩到一半覺得太吵，可以先向帶領者示意休息嗎？", "hint": "可以。可用口語、手勢或圖卡表達。"},
-    {"no": "15", "title": "只借一件", "q": "同學同意你借橡皮擦，你可以同時把他的尺拿走嗎？", "hint": "要另外問。對橡皮擦的同意只涵蓋橡皮擦。"},
-    {"no": "16", "title": "敲門後等待", "q": "老師正在和同學談話，門上寫「請稍候」。敲門後可以直接進去嗎？", "hint": "先等待允許，或請外面的老師協助。"},
-    {"no": "17", "title": "離開時要說", "q": "小組活動中想去安靜處休息，可以先向帶領者說明嗎？", "hint": "可以。老師知道你的需要，就能協助安排。"},
-    {"no": "18", "title": "我的輔具", "q": "想移動同學的助行器，應該先問本人，還是直接搬？", "hint": "先問本人，等他同意並確認是否需要協助。"},
-    {"no": "19", "title": "自己的照片", "q": "同學答應和你合照。把照片傳到群組前，需要再問他嗎？", "hint": "需要。願意拍照和願意分享是兩件事。"},
-    {"no": "20", "title": "練習時也能停", "q": "大家正在做角色扮演，某位同學說「我想停止」，其他人應該暫停嗎？", "hint": "應該。可讓同學選擇改用棋子示範或先休息。"},
-    {"no": "21", "title": "先放回去", "q": "有人說不想借你彩色筆，你已經拿在手上。可以把筆還給對方嗎？", "hint": "可以。聽到拒絕就把東西還回去。"},
-    {"no": "22", "title": "輸了能難過", "q": "輸了遊戲，覺得失望或難過，可以把感受告訴老師嗎？", "hint": "可以。說出感受能讓別人知道你需要什麼。"},
-    {"no": "23", "title": "別人的聯絡簿", "q": "桌上有同學的聯絡簿，你可以自己翻來看嗎？", "hint": "先尊重他的隱私，有需要時請本人或老師協助。"},
-    {"no": "24", "title": "遊戲的先後順序", "q": "你和同學都想先玩，可以一起用計時器或輪流表決定順序嗎？", "hint": "可以。先確認雙方都明白並同意做法。"},
-    {"no": "25", "title": "先提醒再協助", "q": "看到同學掉了物品，可以先問「需要我幫忙撿嗎？」嗎？", "hint": "可以。先詢問，讓同學決定要怎麼做。"}
+    {"no": "01", "title": "想牽手", "q": "想牽同學的手打招呼，要先問他願不願意嗎？", "hint": "要。問完先等答覆，對方願意才牽手。", "opts": ["要先問，等他願意才牽", "不用問，直接牽他的手", "用力拉他的手過來"]},
+    {"no": "02", "title": "沒有回答", "q": "你問「我可以一起玩嗎？」同學沒有回答。現在可以直接加入嗎？", "hint": "先等回應。也可以稍後再問，或先選別的活動。", "opts": ["先等回應，或先玩別的", "直接坐下一起玩", "把遊戲拿過來玩"]},
+    {"no": "03", "title": "更衣的地方", "q": "運動後衣服濕了。你會在教室座位換衣服，還是到可以遮蔽的更衣空間？", "hint": "到可以遮蔽的更衣空間。需要協助時，可先跟信任的老師說。", "opts": ["到可以遮蔽的更衣空間", "在教室座位直接換", "在走廊上換"]},
+    {"no": "04", "title": "有人一直靠近", "q": "你已經說「請離我遠一點」，對方還是一直靠過來。可以退開並找老師幫忙嗎？", "hint": "可以。能離開就先到安全的地方，也可以用手勢、圖卡或呼叫求助。", "opts": ["可以，退開並找老師幫忙", "不可以，只能一直忍耐", "推他一下讓他走開"]},
+    {"no": "05", "title": "點頭和搖頭", "q": "同學搖頭表示不想擊掌，你要停下來嗎？", "hint": "要。搖頭也可以表示拒絕，可以改用揮手打招呼。", "opts": ["要停下來，改成揮手", "繼續拉他的手擊掌", "一直問到他答應"]},
+    {"no": "06", "title": "答應後改變心意", "q": "同學剛才答應合照，現在說不想拍了，還可以繼續拍嗎？", "hint": "要停下來。對方可以改變心意。", "opts": ["要停下來，不拍了", "他答應過，繼續拍", "偷偷拍他"]},
+    {"no": "07", "title": "尊重溝通方式", "q": "同學用溝通板指出「先等等」，你可以等他準備好再繼續嗎？", "hint": "可以。溝通板的訊息同樣要尊重。", "opts": ["可以，等他準備好", "不用等，直接繼續", "幫他按溝通板"]},
+    {"no": "08", "title": "有人堵在門口", "q": "同學擋在門口讓你出不去，你可以呼叫老師幫忙嗎？", "hint": "可以。先呼叫附近的大人協助。", "opts": ["可以，呼叫老師幫忙", "不可以，只能自己推開他", "一直待著不說話"]},
+    {"no": "09", "title": "洗手間的門", "q": "洗手間隔間的門關著，你應該直接推門，還是先等候？", "hint": "先等候。可以看門鎖標示或輕聲詢問。", "opts": ["先等候，或輕聲詢問", "直接推門進去", "從門縫偷看"]},
+    {"no": "10", "title": "可以拒絕起鬨", "q": "同學起鬨要你說出喜歡誰，你可以選擇保留嗎？", "hint": "可以。喜歡誰是個人的事。", "opts": ["可以，喜歡誰是自己的事", "不可以，一定要說", "隨便說一個同學的名字"]},
+    {"no": "11", "title": "衣物沾到經血", "q": "衣物沾到經血時，可以請信任的大人幫忙找備用衣物或生理用品嗎？", "hint": "可以。可在有遮蔽的空間處理。", "opts": ["可以，請信任的大人幫忙", "不可以，要自己藏起來", "在大家面前處理"]},
+    {"no": "12", "title": "青春期的變化", "q": "青春期時，每個人開始長高、變聲或長痘痘的時間會完全一樣嗎？", "hint": "不會。每個人變化的時間和速度可能不同。", "opts": ["不會，每個人的時間不一樣", "會，大家完全一樣", "比別人慢就是生病"]},
+    {"no": "13", "title": "身體不舒服", "q": "有人開玩笑碰你，讓你不舒服，你可以請他停下嗎？", "hint": "可以。也可以離開或找信任的大人協助。", "opts": ["可以，請他停下來", "不可以，要一直忍耐", "也去碰他回去"]},
+    {"no": "14", "title": "休息也是選項", "q": "桌遊玩到一半覺得太吵，可以先向帶領者示意休息嗎？", "hint": "可以。可用口語、手勢或圖卡表達。", "opts": ["可以，向帶領者示意休息", "不可以，一定要玩完", "直接跑出教室"]},
+    {"no": "15", "title": "只借一件", "q": "同學同意你借橡皮擦，你可以同時把他的尺拿走嗎？", "hint": "要另外問。對橡皮擦的同意只涵蓋橡皮擦。", "opts": ["不行，尺要另外問", "可以，一起拿走", "趁他不注意拿走"]},
+    {"no": "16", "title": "敲門後等待", "q": "老師正在和同學談話，門上寫「請稍候」。敲門後可以直接進去嗎？", "hint": "先等待允許，或請外面的老師協助。", "opts": ["先等待允許再進去", "敲了門就直接進去", "一直用力敲門"]},
+    {"no": "17", "title": "離開時要說", "q": "小組活動中想去安靜處休息，可以先向帶領者說明嗎？", "hint": "可以。老師知道你的需要，就能協助安排。", "opts": ["可以，先跟帶領者說", "不用說，自己走開", "躲起來不讓人知道"]},
+    {"no": "18", "title": "我的輔具", "q": "想移動同學的助行器，應該先問本人，還是直接搬？", "hint": "先問本人，等他同意並確認是否需要協助。", "opts": ["先問本人，等他同意", "直接搬走", "叫別人幫忙搬"]},
+    {"no": "19", "title": "自己的照片", "q": "同學答應和你合照。把照片傳到群組前，需要再問他嗎？", "hint": "需要。願意拍照和願意分享是兩件事。", "opts": ["需要，先問他可不可以", "不用問，直接傳", "傳了以後再告訴他"]},
+    {"no": "20", "title": "練習時也能停", "q": "大家正在做角色扮演，某位同學說「我想停止」，其他人應該暫停嗎？", "hint": "應該。可讓同學選擇改用棋子示範或先休息。", "opts": ["應該暫停", "不用停，繼續演", "笑他太膽小"]},
+    {"no": "21", "title": "先放回去", "q": "有人說不想借你彩色筆，你已經拿在手上。可以把筆還給對方嗎？", "hint": "可以。聽到拒絕就把東西還回去。", "opts": ["可以，把筆還給他", "不還，我已經拿到了", "把筆藏起來"]},
+    {"no": "22", "title": "輸了能難過", "q": "輸了遊戲，覺得失望或難過，可以把感受告訴老師嗎？", "hint": "可以。說出感受能讓別人知道你需要什麼。", "opts": ["可以，把感受告訴老師", "不可以，要裝沒事", "生氣摔東西"]},
+    {"no": "23", "title": "別人的聯絡簿", "q": "桌上有同學的聯絡簿，你可以自己翻來看嗎？", "hint": "先尊重他的隱私，有需要時請本人或老師協助。", "opts": ["不翻，要尊重他的隱私", "可以，自己翻來看", "偷偷拿走看"]},
+    {"no": "24", "title": "遊戲的先後順序", "q": "你和同學都想先玩，可以一起用計時器或輪流表決定順序嗎？", "hint": "可以。先確認雙方都明白並同意做法。", "opts": ["可以，兩人都同意就好", "不行，我一定要先玩", "搶過來先玩"]},
+    {"no": "25", "title": "先提醒再協助", "q": "看到同學掉了物品，可以先問「需要我幫忙撿嗎？」嗎？", "hint": "可以。先詢問，讓同學決定要怎麼做。", "opts": ["可以，先問再讓他決定", "不用問，直接撿走", "假裝沒看到"]}
   ],
   yellow: [
-    {"no": "01", "title": "想一起玩", "q": "同學正在玩桌遊，你也想玩。請示範你會怎麼問。", "hint": "例如「我可以下一輪一起玩嗎？」說完停下來等答覆。"},
-    {"no": "02", "title": "借同學的東西", "q": "你想借同學的彩色筆，筆就在桌上。你會怎麼做？", "hint": "例如先問「我可以借這支筆嗎？」等到對方同意再拿。"},
-    {"no": "03", "title": "我想休息", "q": "教室有點吵，你覺得不舒服。請用一句話、手勢或圖卡向老師表達需要。", "hint": "例如「我想去安靜的地方休息一下」，或指「太吵」與「休息」圖卡。"},
-    {"no": "04", "title": "想私下提醒", "q": "你發現同學的衣服沒有整理好。你想幫忙，會怎麼提醒？", "hint": "例如小聲說「我想提醒你一件事」，或請老師私下協助。"},
-    {"no": "05", "title": "拒絕擊掌", "q": "同學伸手想跟你擊掌，但你今天不想。請示範怎麼回應。", "hint": "例如「我今天想揮手就好」，也可以搖頭並揮手。"},
-    {"no": "06", "title": "等候的時間", "q": "老師說場地還沒整理好，你想知道要等多久。你會怎麼問？", "hint": "例如「還要等幾分鐘？」或指「還要多久」圖卡。"},
-    {"no": "07", "title": "不用碰也能打招呼", "q": "你想跟朋友打招呼，但他不喜歡別人碰他。請示範一個方法。", "hint": "例如揮手、點頭，或說「早安」。"},
-    {"no": "08", "title": "輸了想停一下", "q": "你輸了遊戲，握著棋子不想繼續。請示範怎麼讓大家知道你需要暫停。", "hint": "例如放下棋子，再說「我想休息一下」。"},
-    {"no": "09", "title": "提醒拍照的人", "q": "你不想出現在合照裡，大家正準備拍照。請示範你會怎麼說。", "hint": "例如「我這次不拍，我先站到旁邊」。"},
-    {"no": "10", "title": "衣服需要更換", "q": "你的衣服弄濕了，你想去有遮蔽的地方換衣服。請示範怎麼請老師協助。", "hint": "例如「我的衣服濕了，可以帶我去更衣的地方嗎？」"},
-    {"no": "11", "title": "不想回答的問題", "q": "同學問你喜歡誰，你不想回答。請說出一句你會用的話。", "hint": "例如「這是我的私事，我想聊別的」。"},
-    {"no": "12", "title": "想要一點距離", "q": "同學坐得很近，你想留一點空間。你會怎麼說或示意？", "hint": "例如「請往旁邊移一點」，或指「請退一步」圖卡。"},
-    {"no": "13", "title": "手上的東西被拿走", "q": "同學沒問就拿走你的拼圖。請示範如何請他還你。", "hint": "例如「我還在用，請先還我」。需要時可找帶領者。"},
-    {"no": "14", "title": "遊戲方式不一樣", "q": "同伴用不同規則玩，你想確認這一輪的玩法。你會怎麼問？", "hint": "例如「我們先一起看規則，這一輪用哪一種？」"},
-    {"no": "15", "title": "找不到輪到誰", "q": "你一時忘記下一位輪到誰。請用一個方法確認。", "hint": "例如問「現在輪到誰？」或一起看輪流順序圖。"},
-    {"no": "16", "title": "先問再幫忙", "q": "同學正在努力拉拉鍊，你想幫忙。你要怎麼開口？", "hint": "例如「你想自己試試，還是需要我幫忙？」"},
-    {"no": "17", "title": "請把照片收起來", "q": "同學在大家面前傳看你不想公開的照片。請示範如何提出要求。", "hint": "例如「這張照片我想保留，請先收起來」。也可以找老師協助。"},
-    {"no": "18", "title": "想換位置", "q": "旁邊的聲音讓你很難專心，你想換座位。請示範怎麼詢問。", "hint": "例如「這裡太吵，我可以換到旁邊的座位嗎？」"},
-    {"no": "19", "title": "兩人都想先", "q": "兩位玩家都想第一個擲骰。請提出一個兩人都可以選擇接受的方法。", "hint": "例如先問兩人是否同意猜拳，再照結果輪流。"},
-    {"no": "20", "title": "剛才沒聽清楚", "q": "牌卡念完了，你沒聽清楚。請示範怎麼請帶領者再說一次。", "hint": "例如「請再念一次」，也可以使用「再一次」圖卡。"},
-    {"no": "21", "title": "事情改了怎麼問", "q": "原本要去戶外，老師說今天改在教室。你想知道接下來做什麼。", "hint": "例如「現在先做哪一件事？」或指今天的活動表詢問。"},
-    {"no": "22", "title": "請停止叫綽號", "q": "同學一直用你不喜歡的綽號叫你。請示範如何請他停下。", "hint": "例如「我不喜歡這個稱呼，請叫我的名字」。需要時可求助。"},
-    {"no": "23", "title": "朋友在生氣", "q": "同伴把棋子放下，看起來有點生氣。請用一句話詢問他想要的協助。", "hint": "例如「你想休息一下，還是想要我找老師？」"},
-    {"no": "24", "title": "發現自己做錯", "q": "你沒問就拿了同學的筆，對方說不想借。請示範接下來怎麼做。", "hint": "先把筆放回或交還，再說「剛才我忘了先問」。"},
-    {"no": "25", "title": "想保留自己的話", "q": "你想告訴老師一件私事，但旁邊有許多同學。你會怎麼開口？", "hint": "例如「老師，我想找個安靜一點的地方跟你說」。"}
+    {"no": "01", "title": "想一起玩", "q": "同學正在玩桌遊，你也想玩。請示範你會怎麼問。", "hint": "例如「我可以下一輪一起玩嗎？」說完停下來等答覆。", "opts": ["問「我可以下一輪一起玩嗎？」再等答覆", "直接坐下來拿棋子", "大喊「我也要玩！」擠進去"]},
+    {"no": "02", "title": "借同學的東西", "q": "你想借同學的彩色筆，筆就在桌上。你會怎麼做？", "hint": "例如先問「我可以借這支筆嗎？」等到對方同意再拿。", "opts": ["先問「我可以借這支筆嗎？」等他同意", "直接拿來用", "趁他不在偷偷拿"]},
+    {"no": "03", "title": "我想休息", "q": "教室有點吵，你覺得不舒服。請用一句話、手勢或圖卡向老師表達需要。", "hint": "例如「我想去安靜的地方休息一下」，或指「太吵」與「休息」圖卡。", "opts": ["說「我想去安靜的地方休息」或指圖卡", "摀住耳朵大叫", "不說話，自己跑出去"]},
+    {"no": "04", "title": "想私下提醒", "q": "你發現同學的衣服沒有整理好。你想幫忙，會怎麼提醒？", "hint": "例如小聲說「我想提醒你一件事」，或請老師私下協助。", "opts": ["小聲說「我想提醒你一件事」", "大聲告訴全班", "直接動手幫他拉衣服"]},
+    {"no": "05", "title": "拒絕擊掌", "q": "同學伸手想跟你擊掌，但你今天不想。請示範怎麼回應。", "hint": "例如「我今天想揮手就好」，也可以搖頭並揮手。", "opts": ["說「我今天想揮手就好」", "把他的手推開", "生氣地罵他"]},
+    {"no": "06", "title": "等候的時間", "q": "老師說場地還沒整理好，你想知道要等多久。你會怎麼問？", "hint": "例如「還要等幾分鐘？」或指「還要多久」圖卡。", "opts": ["問「還要等幾分鐘？」或指圖卡", "一直大叫「好慢！」", "自己先跑去場地"]},
+    {"no": "07", "title": "不用碰也能打招呼", "q": "你想跟朋友打招呼，但他不喜歡別人碰他。請示範一個方法。", "hint": "例如揮手、點頭，或說「早安」。", "opts": ["揮手、點頭或說「早安」", "拍他的肩膀", "抱他一下"]},
+    {"no": "08", "title": "輸了想停一下", "q": "你輸了遊戲，握著棋子不想繼續。請示範怎麼讓大家知道你需要暫停。", "hint": "例如放下棋子，再說「我想休息一下」。", "opts": ["放下棋子，說「我想休息一下」", "把棋子丟掉", "推倒大家的棋子"]},
+    {"no": "09", "title": "提醒拍照的人", "q": "你不想出現在合照裡，大家正準備拍照。請示範你會怎麼說。", "hint": "例如「我這次不拍，我先站到旁邊」。", "opts": ["說「我這次不拍，我先站旁邊」", "擋住鏡頭", "搶走相機"]},
+    {"no": "10", "title": "衣服需要更換", "q": "你的衣服弄濕了，你想去有遮蔽的地方換衣服。請示範怎麼請老師協助。", "hint": "例如「我的衣服濕了，可以帶我去更衣的地方嗎？」", "opts": ["說「我的衣服濕了，可以帶我去更衣的地方嗎？」", "直接在教室換", "穿著濕衣服不說"]},
+    {"no": "11", "title": "不想回答的問題", "q": "同學問你喜歡誰，你不想回答。請說出一句你會用的話。", "hint": "例如「這是我的私事，我想聊別的」。", "opts": ["說「這是我的私事，我想聊別的」", "隨便說一個名字", "生氣打他"]},
+    {"no": "12", "title": "想要一點距離", "q": "同學坐得很近，你想留一點空間。你會怎麼說或示意？", "hint": "例如「請往旁邊移一點」，或指「請退一步」圖卡。", "opts": ["說「請往旁邊移一點」或指圖卡", "把他推開", "一直忍著不說"]},
+    {"no": "13", "title": "手上的東西被拿走", "q": "同學沒問就拿走你的拼圖。請示範如何請他還你。", "hint": "例如「我還在用，請先還我」。需要時可找帶領者。", "opts": ["說「我還在用，請先還我」", "直接搶回來", "也去拿他的東西"]},
+    {"no": "14", "title": "遊戲方式不一樣", "q": "同伴用不同規則玩，你想確認這一輪的玩法。你會怎麼問？", "hint": "例如「我們先一起看規則，這一輪用哪一種？」", "opts": ["問「我們先看規則，這一輪用哪一種？」", "說他玩錯了，不跟他玩", "自己偷偷改規則"]},
+    {"no": "15", "title": "找不到輪到誰", "q": "你一時忘記下一位輪到誰。請用一個方法確認。", "hint": "例如問「現在輪到誰？」或一起看輪流順序圖。", "opts": ["問「現在輪到誰？」或看順序圖", "自己先擲骰子", "不玩了"]},
+    {"no": "16", "title": "先問再幫忙", "q": "同學正在努力拉拉鍊，你想幫忙。你要怎麼開口？", "hint": "例如「你想自己試試，還是需要我幫忙？」", "opts": ["問「你想自己試，還是要我幫忙？」", "直接幫他拉", "笑他拉不好"]},
+    {"no": "17", "title": "請把照片收起來", "q": "同學在大家面前傳看你不想公開的照片。請示範如何提出要求。", "hint": "例如「這張照片我想保留，請先收起來」。也可以找老師協助。", "opts": ["說「這張照片我想保留，請收起來」", "搶過手機丟掉", "假裝沒看到"]},
+    {"no": "18", "title": "想換位置", "q": "旁邊的聲音讓你很難專心，你想換座位。請示範怎麼詢問。", "hint": "例如「這裡太吵，我可以換到旁邊的座位嗎？」", "opts": ["問「這裡太吵，我可以換座位嗎？」", "直接坐到別人的位子", "叫旁邊的人閉嘴"]},
+    {"no": "19", "title": "兩人都想先", "q": "兩位玩家都想第一個擲骰。請提出一個兩人都可以選擇接受的方法。", "hint": "例如先問兩人是否同意猜拳，再照結果輪流。", "opts": ["先問兩人同不同意猜拳，再照結果", "誰搶到骰子誰先", "我先，因為我想先"]},
+    {"no": "20", "title": "剛才沒聽清楚", "q": "牌卡念完了，你沒聽清楚。請示範怎麼請帶領者再說一次。", "hint": "例如「請再念一次」，也可以使用「再一次」圖卡。", "opts": ["說「請再念一次」或用圖卡", "亂猜一個答案", "不理它"]},
+    {"no": "21", "title": "事情改了怎麼問", "q": "原本要去戶外，老師說今天改在教室。你想知道接下來做什麼。", "hint": "例如「現在先做哪一件事？」或指今天的活動表詢問。", "opts": ["問「現在先做哪一件事？」", "大哭不想做", "自己跑去戶外"]},
+    {"no": "22", "title": "請停止叫綽號", "q": "同學一直用你不喜歡的綽號叫你。請示範如何請他停下。", "hint": "例如「我不喜歡這個稱呼，請叫我的名字」。需要時可求助。", "opts": ["說「我不喜歡這個稱呼，請叫我的名字」", "也取綽號叫他", "打他一下"]},
+    {"no": "23", "title": "朋友在生氣", "q": "同伴把棋子放下，看起來有點生氣。請用一句話詢問他想要的協助。", "hint": "例如「你想休息一下，還是想要我找老師？」", "opts": ["問「你想休息，還是要我找老師？」", "叫他不要生氣", "拿走他的棋子"]},
+    {"no": "24", "title": "發現自己做錯", "q": "你沒問就拿了同學的筆，對方說不想借。請示範接下來怎麼做。", "hint": "先把筆放回或交還，再說「剛才我忘了先問」。", "opts": ["把筆還他，說「剛才我忘了先問」", "繼續用完再還", "說「我又沒拿」"]},
+    {"no": "25", "title": "想保留自己的話", "q": "你想告訴老師一件私事，但旁邊有許多同學。你會怎麼開口？", "hint": "例如「老師，我想找個安靜一點的地方跟你說」。", "opts": ["說「老師，我想找安靜的地方跟你說」", "在大家面前大聲說", "都不說，自己忍著"]}
   ],
   green: [
-    {"no": "01", "title": "這次我想自己玩", "q": "小禾問能不能一起玩。同學回答「這次我想自己玩」。如果你是小禾，會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能有點失望，想到對方想自己玩，接著說「好」，去選別的活動。"},
-    {"no": "02", "title": "還要等一下", "q": "小安很期待去戶外，老師說要先等場地空出來。小安會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到還不知道要等多久，接著問「我可以看計時器嗎？」"},
-    {"no": "03", "title": "大家靠得很近", "q": "排隊時後面的人貼得很近，小羽往前也沒有空位。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不舒服，想到自己需要一點空間，接著說「請退一步」，或向老師示意。"},
-    {"no": "04", "title": "遊戲時有爭執", "q": "兩個人都想用同一顆棋子，說話越來越大聲。你會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到大家都想用同一顆，接著先停手，再提議輪流或請老師協助。"},
-    {"no": "05", "title": "答應後說先不要", "q": "小岑原本願意合照，輪到拍照時說想先退出。你是拍照的人，會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能意外，想到對方改了心意，先把相機放下，讓對方離開鏡頭。"},
-    {"no": "06", "title": "吵鬧的教室", "q": "小羽聽到同學歡呼，覺得聲音太大。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到需要安靜，向老師示意休息或換位置。"},
-    {"no": "07", "title": "臨時改活動", "q": "小禾以為要去操場，看到活動表臨時改成室內桌遊。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能失望，想知道什麼時候能去，先看新的流程並向老師詢問。"},
-    {"no": "08", "title": "更衣間有人", "q": "小岑想整理弄濕的衣服，更衣間的門關著，外面也有人等。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到要有隱私，詢問老師還有沒有其他合適空間。"},
-    {"no": "09", "title": "朋友沒回答", "q": "小羽問同學能不能借一支筆，同學沒有出聲。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不確定，想到同學也許沒聽到，等一下再問或先用自己的筆。"},
-    {"no": "10", "title": "我想自己試試", "q": "小禾正在用新的棋子架，同學伸手就要替他操作。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不自在，想到自己想練習，說「我想先自己試試」。"},
-    {"no": "11", "title": "笑聲從旁邊傳來", "q": "小岑答錯一題，旁邊有人笑了。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能尷尬，也不確定別人在笑什麼，可以說出感受或請帶領者幫忙。"},
-    {"no": "12", "title": "朋友沒有等我", "q": "小羽還在收道具，同組朋友已經開始下一關。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到大家也許沒注意到，說「等我把這些收好，我也想加入」。"},
-    {"no": "13", "title": "綽號不好笑", "q": "有人給小禾取了他不喜歡的綽號，同學跟著喊。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能生氣，想到自己想被叫本名，請大家停止，或向老師求助。"},
-    {"no": "14", "title": "不想一起走", "q": "小岑邀請同學一起走去活動室，對方說想自己走。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能有點失落，想到同學有自己的選擇，可以回「好，我們等等見」。"},
-    {"no": "15", "title": "想先知道順序", "q": "換了新桌遊，小羽不知道什麼時候輪到自己。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不安，想到有順序表會比較清楚，請帶領者指出現在和下一位。"},
-    {"no": "16", "title": "我想坐這裡", "q": "兩位同學同時看上同一張靠窗的椅子。你會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能想爭取，想到兩人都有理由，先說需求，再討論輪流或換座位。"},
-    {"no": "17", "title": "私事被問起", "q": "下課時同學在眾人面前問小禾喜歡誰。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能害羞，想到自己可以保留，說「我想聊別的」或請老師協助。"},
-    {"no": "18", "title": "沒看懂手勢", "q": "同學用手勢向小岑表示先停，但小岑沒看懂。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能困惑，想到還沒確認意思，先停下來，問「你想要我等一下嗎？」"},
-    {"no": "19", "title": "分享照片前", "q": "同學想把兩人的合照貼到班級群組，小羽只想自己留存。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能擔心，想到自己可以決定是否分享，說「這張請先留在手機裡」。"},
-    {"no": "20", "title": "等候時被催促", "q": "小禾用溝通板找句子，旁邊的人一直說「快一點」。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到自己需要時間，可以指出「請等我」，或請帶領者提醒大家等待。"},
-    {"no": "21", "title": "道具弄壞了", "q": "小岑借同學的道具時不小心弄壞了。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能擔心，想到要讓對方知道，先說發生什麼事，再找老師一起想處理方式。"},
-    {"no": "22", "title": "剛好不想被碰", "q": "平常喜歡擊掌的小羽今天想用點頭打招呼，同伴還是伸手過來。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不舒服，想到今天想換一種方式，先退半步，再說「今天我想點頭就好」。"},
-    {"no": "23", "title": "別人幫我答了", "q": "小禾還在想怎麼回答，旁邊同學先替他回答。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能失落，想到想自己試試，示意帶領者說「我想自己回答」。"},
-    {"no": "24", "title": "排在最後一位", "q": "小岑今天排在最後擲骰，等了一會兒就想離開。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不耐煩，想到還有幾位才輪到自己，可以看順序表或選一個安靜的等待方式。"},
-    {"no": "25", "title": "朋友想換遊戲", "q": "小羽很喜歡現在的遊戲，朋友想改玩別的。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不捨，想到彼此喜好不同，可問要不要玩完這一輪再換，或分開選活動。"}
+    {"no": "01", "title": "這次我想自己玩", "q": "小禾問能不能一起玩。同學回答「這次我想自己玩」。如果你是小禾，會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能有點失望，想到對方想自己玩，接著說「好」，去選別的活動。", "opts": ["說「好」，去選別的活動", "一直拜託到他答應", "弄亂他的遊戲"]},
+    {"no": "02", "title": "還要等一下", "q": "小安很期待去戶外，老師說要先等場地空出來。小安會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到還不知道要等多久，接著問「我可以看計時器嗎？」", "opts": ["問「我可以看計時器嗎？」", "自己先跑去戶外", "一直大叫"]},
+    {"no": "03", "title": "大家靠得很近", "q": "排隊時後面的人貼得很近，小羽往前也沒有空位。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不舒服，想到自己需要一點空間，接著說「請退一步」，或向老師示意。", "opts": ["說「請退一步」或向老師示意", "用力推後面的人", "忍著不說"]},
+    {"no": "04", "title": "遊戲時有爭執", "q": "兩個人都想用同一顆棋子，說話越來越大聲。你會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到大家都想用同一顆，接著先停手，再提議輪流或請老師協助。", "opts": ["先停手，提議輪流或請老師", "用力搶棋子", "更大聲地吵"]},
+    {"no": "05", "title": "答應後說先不要", "q": "小岑原本願意合照，輪到拍照時說想先退出。你是拍照的人，會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能意外，想到對方改了心意，先把相機放下，讓對方離開鏡頭。", "opts": ["放下相機，讓她離開鏡頭", "叫她一定要拍", "偷偷拍她"]},
+    {"no": "06", "title": "吵鬧的教室", "q": "小羽聽到同學歡呼，覺得聲音太大。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到需要安靜，向老師示意休息或換位置。", "opts": ["向老師示意休息或換位置", "大叫要大家安靜", "躲到桌子下面不出來"]},
+    {"no": "07", "title": "臨時改活動", "q": "小禾以為要去操場，看到活動表臨時改成室內桌遊。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能失望，想知道什麼時候能去，先看新的流程並向老師詢問。", "opts": ["看新的流程，再問老師", "自己跑去操場", "生氣不玩"]},
+    {"no": "08", "title": "更衣間有人", "q": "小岑想整理弄濕的衣服，更衣間的門關著，外面也有人等。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到要有隱私，詢問老師還有沒有其他合適空間。", "opts": ["問老師有沒有其他合適的空間", "用力敲門催人", "在走廊直接換"]},
+    {"no": "09", "title": "朋友沒回答", "q": "小羽問同學能不能借一支筆，同學沒有出聲。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不確定，想到同學也許沒聽到，等一下再問或先用自己的筆。", "opts": ["等一下再問，或先用自己的筆", "直接拿他的筆", "生氣不理他"]},
+    {"no": "10", "title": "我想自己試試", "q": "小禾正在用新的棋子架，同學伸手就要替他操作。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不自在，想到自己想練習，說「我想先自己試試」。", "opts": ["說「我想先自己試試」", "把同學推開", "大叫「走開！」"]},
+    {"no": "11", "title": "笑聲從旁邊傳來", "q": "小岑答錯一題，旁邊有人笑了。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能尷尬，也不確定別人在笑什麼，可以說出感受或請帶領者幫忙。", "opts": ["說出感受，或請帶領者幫忙", "罵笑他的人", "把卡片撕掉"]},
+    {"no": "12", "title": "朋友沒有等我", "q": "小羽還在收道具，同組朋友已經開始下一關。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能著急，想到大家也許沒注意到，說「等我把這些收好，我也想加入」。", "opts": ["說「等我收好，我也想加入」", "道具丟著就跑去玩", "生氣不玩"]},
+    {"no": "13", "title": "綽號不好笑", "q": "有人給小禾取了他不喜歡的綽號，同學跟著喊。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能生氣，想到自己想被叫本名，請大家停止，或向老師求助。", "opts": ["請大家停止，或向老師求助", "也給他們取綽號", "打喊綽號的人"]},
+    {"no": "14", "title": "不想一起走", "q": "小岑邀請同學一起走去活動室，對方說想自己走。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能有點失落，想到同學有自己的選擇，可以回「好，我們等等見」。", "opts": ["說「好，我們等等見」", "一直跟在他後面", "罵他不夠朋友"]},
+    {"no": "15", "title": "想先知道順序", "q": "換了新桌遊，小羽不知道什麼時候輪到自己。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不安，想到有順序表會比較清楚，請帶領者指出現在和下一位。", "opts": ["請帶領者指出現在和下一位", "搶著先玩", "離開遊戲"]},
+    {"no": "16", "title": "我想坐這裡", "q": "兩位同學同時看上同一張靠窗的椅子。你會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能想爭取，想到兩人都有理由，先說需求，再討論輪流或換座位。", "opts": ["說出需求，再討論輪流或換位", "搶先坐下", "把對方推開"]},
+    {"no": "17", "title": "私事被問起", "q": "下課時同學在眾人面前問小禾喜歡誰。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能害羞，想到自己可以保留，說「我想聊別的」或請老師協助。", "opts": ["說「我想聊別的」或請老師幫忙", "只好說出來", "罵他多管閒事"]},
+    {"no": "18", "title": "沒看懂手勢", "q": "同學用手勢向小岑表示先停，但小岑沒看懂。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能困惑，想到還沒確認意思，先停下來，問「你想要我等一下嗎？」", "opts": ["先停下來，問「你要我等一下嗎？」", "繼續做自己的事", "笑他的手勢很奇怪"]},
+    {"no": "19", "title": "分享照片前", "q": "同學想把兩人的合照貼到班級群組，小羽只想自己留存。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能擔心，想到自己可以決定是否分享，說「這張請先留在手機裡」。", "opts": ["說「這張請先留在手機裡」", "不說話讓他貼", "搶他的手機"]},
+    {"no": "20", "title": "等候時被催促", "q": "小禾用溝通板找句子，旁邊的人一直說「快一點」。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能緊張，想到自己需要時間，可以指出「請等我」，或請帶領者提醒大家等待。", "opts": ["指「請等我」，或請帶領者提醒", "隨便選一句", "把溝通板推開"]},
+    {"no": "21", "title": "道具弄壞了", "q": "小岑借同學的道具時不小心弄壞了。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能擔心，想到要讓對方知道，先說發生什麼事，再找老師一起想處理方式。", "opts": ["先說發生什麼事，再找老師", "偷偷放回去不說", "說是別人弄壞的"]},
+    {"no": "22", "title": "剛好不想被碰", "q": "平常喜歡擊掌的小羽今天想用點頭打招呼，同伴還是伸手過來。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不舒服，想到今天想換一種方式，先退半步，再說「今天我想點頭就好」。", "opts": ["退半步，說「今天我想點頭就好」", "勉強和他擊掌", "打他的手"]},
+    {"no": "23", "title": "別人幫我答了", "q": "小禾還在想怎麼回答，旁邊同學先替他回答。小禾會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能失落，想到想自己試試，示意帶領者說「我想自己回答」。", "opts": ["示意帶領者：「我想自己回答」", "生氣罵同學", "不說話，放棄"]},
+    {"no": "24", "title": "排在最後一位", "q": "小岑今天排在最後擲骰，等了一會兒就想離開。小岑會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不耐煩，想到還有幾位才輪到自己，可以看順序表或選一個安靜的等待方式。", "opts": ["看順序表，或選安靜的等待方式", "直接離開遊戲", "搶前面的人的骰子"]},
+    {"no": "25", "title": "朋友想換遊戲", "q": "小羽很喜歡現在的遊戲，朋友想改玩別的。小羽會有什麼感受？想到什麼？接下來怎麼做？", "hint": "可能不捨，想到彼此喜好不同，可問要不要玩完這一輪再換，或分開選活動。", "opts": ["問要不要玩完這輪再換", "生氣把遊戲收走", "硬要朋友繼續玩"]}
   ],
   red: [
     {"no": "01", "title": "輪流有方法", "q": "你提出用計時器輪流，兩位玩家都同意。往前走 1 格。", "hint": "前進後留在新格，等下一位玩家開始。", "effect": "move1"},
@@ -559,7 +650,9 @@ const Settings = {
   rounds: store.get('rounds', 5),     // 0 = 不限，由帶領者按結算
   blueSec: store.get('blueSec', 3),   // 0 = 不計時
   custom: store.get('custom', []),    // 自訂題卡（空白卡）
-  save() { store.set('rounds', this.rounds); store.set('blueSec', this.blueSec); store.set('custom', this.custom); }
+  choice: store.get('choice', true),  // 選擇題作答（特教友善）
+  autoRead: store.get('autoRead', true), // 翻牌後自動朗讀
+  save() { store.set('rounds', this.rounds); store.set('blueSec', this.blueSec); store.set('custom', this.custom); store.set('choice', this.choice); store.set('autoRead', this.autoRead); }
 };
 
 /* ==========================================================
@@ -607,7 +700,7 @@ function showScreen(id) {
 function openStage(html) { $('stageBody').innerHTML = html; $('stage').classList.remove('hidden'); $('stage').scrollTop = 0; }
 function closeStage() { $('stage').classList.add('hidden'); $('stageBody').innerHTML = ''; }
 function openModal(html) { $('modal').innerHTML = html; $('modal').classList.remove('hidden'); $('modal').scrollTop = 0; }
-function closeModal() { $('modal').classList.add('hidden'); $('modal').innerHTML = ''; }
+function closeModal() { TTS.stop(); $('modal').classList.add('hidden'); $('modal').innerHTML = ''; }
 function toast(msg, ms = 2200) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
   setTimeout(() => t.remove(), ms);
@@ -623,6 +716,13 @@ function renderTitleOpts() {
   $('optSec').innerHTML = s.map(([v, l]) => `<button class="chip ${Settings.blueSec === v ? 'on' : ''}" data-s="${v}">${l}</button>`).join(' ');
   $('optRounds').querySelectorAll('[data-r]').forEach(b => b.onclick = () => { SFX.click(); Settings.rounds = +b.dataset.r; Settings.save(); renderTitleOpts(); });
   $('optSec').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { SFX.click(); Settings.blueSec = +b.dataset.s; Settings.save(); renderTitleOpts(); });
+  const chip = (id, list, key) => {
+    $(id).innerHTML = list.map(([v, l]) => `<button class="chip ${Settings[key] === v ? 'on' : ''}" data-v="${v}">${l}</button>`).join(' ');
+    $(id).querySelectorAll('[data-v]').forEach(b => b.onclick = () => { SFX.click(); Settings[key] = b.dataset.v === 'true'; Settings.save(); renderTitleOpts(); });
+  };
+  chip('optChoice', [[true, '選擇題（看選項點選）'], [false, '口頭回答（帶領者判定）']], 'choice');
+  chip('optRead', [[true, '翻牌自動朗讀'], [false, '按 🔊 才朗讀']], 'autoRead');
+  $('optSec').closest('.opt-row').style.display = Settings.choice ? 'none' : '';
 }
 
 /* ==========================================================
@@ -1198,8 +1298,8 @@ function cardShell(p, color, card, inner) {
     ${artUrl(`card_${color}_${card.no}`) ? `<div class="card-img" title="點圖片放大／縮小" onclick="this.classList.toggle('zoom')"><img src="${artUrl(`card_${color}_${card.no}`)}" alt="${esc(card.title)}"></div>` : ''}
     <div class="card-body">
       <div class="card-who" style="--pc:${p.color}"><span class="mini">${artHTML(p.char, true)}</span>${color === 'black' ? '全體玩家一起挑戰！（由 ' + esc(pShort(p)) + ' 翻開）' : esc(pName(p)) + ' 的挑戰'}</div>
-      <div class="card-q">${esc(card.q)}</div>
-      <div class="card-rule">📌 ${C.rule}<br><span style="color:#6b7280">🧑‍🏫 ${C.script}</span></div>
+      <div class="card-q">${esc(card.q)} <button class="read-btn" id="readQ" title="朗讀題目">🔊 聽題目</button></div>
+      <div class="card-rule">📌 ${(Settings.choice && CHOICE_RULE[color]) || C.rule}<br><span style="color:#6b7280">🧑‍🏫 ${(Settings.choice && CHOICE_SCRIPT[color]) || C.script}</span></div>
       ${inner}
     </div></div>`;
 }
@@ -1211,18 +1311,77 @@ function hintBlock(card, open = false) {
 function bindHint() { const b = $('hintBtn'); if (b) b.onclick = () => { SFX.click(); b.classList.add('hidden'); $('hintBox').classList.remove('hidden'); }; }
 function showHint() { const b = $('hintBtn'); if (b) b.classList.add('hidden'); const h = $('hintBox'); if (h) h.classList.remove('hidden'); }
 
+const CHOICE_RULE = {
+  blue: '聽完題目，選出正確的答案。第一次就選對，得 1 枚金幣。',
+  yellow: '聽完題目，選出最合宜的做法。第一次就選對，得 1 枚金幣。',
+  green: '先選一選心裡的感受，再選接下來怎麼做。做法第一次就選對，得 1 枚金幣。'
+};
+const CHOICE_SCRIPT = {
+  blue: '念題目或按「🔊 聽題目」，讓玩家慢慢想、慢慢選。選錯時，用一句話補充正確觀念。',
+  yellow: '選完後可以請玩家把這個做法說一次或做一次，再邀請大家補充其他方法。',
+  green: '感受沒有對錯。可以用虛構人物的角度回答，也可以略過個人經驗。'
+};
+let CUR_CH = null; // 目前畫面上的選項（已打亂順序）
 function openCard(p, color, card) {
   SFX.flip();
-  stopCardTimer();
-  if (color === 'blue') return cardBlue(p, card);
-  if (color === 'yellow') return cardYellow(p, card);
-  if (color === 'green') return cardGreen(p, card);
-  if (color === 'red') return cardRed(p, card);
-  return cardBlack(p, card);
+  stopCardTimer(); TTS.stop(); CUR_CH = null;
+  ({ blue: cardBlue, yellow: cardYellow, green: cardGreen, red: cardRed, black: cardBlack })[color](p, card);
+  const text = () => {
+    let t = `${card.title}。${card.q}`;
+    if (CUR_CH) t += (color === 'green' ? '接下來怎麼做？' : '') + CUR_CH.map((o, i) => `第${i + 1}個，${o.t}。`).join('');
+    return t;
+  };
+  if ($('readQ')) $('readQ').onclick = e => { e.stopPropagation(); TTS.speak(text()); };
+  if (Settings.autoRead) setTimeout(() => { if ($('readQ')) TTS.speak(text()); }, 650);
+}
+/* 選擇題：opts[0] 是正確答案，畫面上打亂順序 */
+function useChoice(card) { return Settings.choice && Array.isArray(card.opts) && card.opts.length >= 2; }
+function choiceHTML(card, title) {
+  CUR_CH = shuffle(card.opts.map((t, i) => ({ t, ok: i === 0 })));
+  return `<div class="ch-title">${title}</div><div class="choices" id="choices">${CUR_CH.map((o, i) =>
+    `<div class="ch" data-i="${i}" role="button" tabindex="0"><span class="ch-n">${i + 1}</span><span class="ch-t">${esc(o.t)}</span><button class="ch-say" data-say="${i}" title="朗讀這個選項" aria-label="朗讀這個選項">🔊</button></div>`).join('')}</div>
+    <div class="ch-msg" id="chMsg"></div>`;
+}
+function bindChoice(onRight) {
+  let tries = 0, done = false;
+  const box = $('choices');
+  box.querySelectorAll('.ch-say').forEach(b => b.onclick = e => { e.stopPropagation(); const i = +b.dataset.say; TTS.speak(`第${i + 1}個，${CUR_CH[i].t}`); });
+  const pick = el => {
+    if (done || el.classList.contains('wrong')) return;
+    const o = CUR_CH[+el.dataset.i], msg = $('chMsg');
+    if (o.ok) {
+      done = true; el.classList.add('right'); box.querySelectorAll('.ch').forEach(x => x.classList.add('locked'));
+      msg.className = 'ch-msg good'; msg.textContent = tries === 0 ? '🎉 答對了！' : '👍 找到了！這就是好方法。';
+      TTS.speak(tries === 0 ? '答對了！' : '找到了！這就是好方法。');
+      onRight(tries === 0);
+    } else {
+      tries++; el.classList.add('wrong'); SFX.buzz();
+      msg.className = 'ch-msg try'; msg.textContent = '再想想看，換一個試試！';
+      TTS.speak('再想想看，換一個試試。');
+    }
+  };
+  box.querySelectorAll('.ch').forEach(el => { el.onclick = () => pick(el); el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(el); } }; });
+}
+function leaderOverride() {
+  return `<details class="lead-ovr"><summary>🧑‍🏫 帶領者手動判定</summary><div class="judge"><button class="btn good" id="jOk">✓ 給 1 金幣，換下一位</button><button class="btn bad" id="jNo">不給分，換下一位</button></div></details>`;
+}
+/* 選擇題版本（藍、黃共用） */
+function cardChoice(p, color, card, title, why) {
+  openModal(cardShell(p, color, card, `${choiceHTML(card, title)}${hintBlock(card)}<div class="judge hidden" id="jDone"><button class="btn primary" id="jNext">換下一位 ▶</button></div>${leaderOverride()}`));
+  bindHint();
+  const ovr = () => document.querySelector('.lead-ovr');
+  bindChoice(first => {
+    showHint(); if (first) addCoins(p, 1, why); else addLog(`${pName(p)} 試了幾次後找到答案`);
+    if (ovr()) ovr().remove(); $('jDone').classList.remove('hidden');
+  });
+  $('jNext').onclick = () => finishTurn(100);
+  $('jOk').onclick = () => { addCoins(p, 1, why); finishTurn(500); };
+  $('jNo').onclick = () => finishTurn(100);
 }
 
 /* 藍色知識卡：三秒快答 */
 function cardBlue(p, card) {
+  if (useChoice(card)) return cardChoice(p, 'blue', card, '請選出正確的答案：', '知識卡答對');
   const sec = Settings.blueSec;
   const timer = sec ? `<div class="timer-row"><button class="btn good" id="tStart">⏱ 題目念完，開始 ${sec} 秒</button><div class="timer-num" id="tNum">${sec}</div></div><div class="tbar"><i id="tBar"></i></div>` : '';
   openModal(cardShell(p, 'blue', card, `${timer}${hintBlock(card)}
@@ -1251,6 +1410,7 @@ function cardBlue(p, card) {
 }
 /* 黃色技能卡 */
 function cardYellow(p, card) {
+  if (useChoice(card)) return cardChoice(p, 'yellow', card, '哪一個是好方法？', '技能卡');
   openModal(cardShell(p, 'yellow', card, `${hintBlock(card)}
     <div class="judge"><button class="btn good" id="jOk">✓ 合理做法 +1 金幣</button><button class="btn bad" id="jNo">再想想（不得分）</button></div>`));
   bindHint();
@@ -1259,6 +1419,25 @@ function cardYellow(p, card) {
 }
 /* 綠色情境卡：感受、想法、做法 */
 function cardGreen(p, card) {
+  if (useChoice(card)) {
+    const FEEL = [['😊', '開心'], ['😢', '失望'], ['😟', '緊張'], ['😠', '生氣'], ['😣', '不舒服'], ['😳', '尷尬'], ['🤔', '不確定']];
+    openModal(cardShell(p, 'green', card, `
+      <div class="ch-title">① 心裡可能有什麼感受？（可以選很多個，沒有標準答案）</div>
+      <div class="feel" id="feel">${FEEL.map(([e, t]) => `<button data-t="${t}">${e} ${t}</button>`).join('')}</div>
+      ${choiceHTML(card, '② 接下來怎麼做比較好？')}
+      ${hintBlock(card)}<div class="judge hidden" id="jDone"><button class="btn primary" id="jNext">換下一位 ▶</button></div>${leaderOverride()}
+      <div style="font-size:13px;color:#6b7280;margin-top:8px">帶領者可以再問：「你想到什麼？」接受不同的合理答案。</div>`));
+    bindHint();
+    $('feel').querySelectorAll('button').forEach(b => b.onclick = () => { b.classList.toggle('on'); SFX.click(); if (b.classList.contains('on')) TTS.speak(b.dataset.t); });
+    bindChoice(first => {
+      showHint(); if (first) addCoins(p, 1, '情境卡'); else addLog(`${pName(p)} 試了幾次後找到做法`);
+      const o = document.querySelector('.lead-ovr'); if (o) o.remove(); $('jDone').classList.remove('hidden');
+    });
+    $('jNext').onclick = () => finishTurn(100);
+    $('jOk').onclick = () => { addCoins(p, 1, '情境卡'); finishTurn(500); };
+    $('jNo').onclick = () => finishTurn(100);
+    return;
+  }
   openModal(cardShell(p, 'green', card, `
     <div class="tri" id="tri">
       <button data-k="0">01 感受<small>你心裡有什麼感受？</small></button>
@@ -1509,6 +1688,11 @@ window.addEventListener('load', () => {
   $('zFit').onclick = () => setZoom(1);
   $('btnSound').onclick = () => { SFX.on = !SFX.on; store.set('sound', SFX.on); snd(); SFX.click(); };
   snd();
+  $('btnMusic').onclick = $('btnMusicT').onclick = () => BGM.toggle();
+  renderBgmBtns();
+  // 瀏覽器規定要先有點擊才能出聲：第一次點畫面時開始播音樂、喚醒朗讀
+  const wake = e => { if (e && e.target && e.target.closest && e.target.closest('.bgm-btn')) return; BGM.start(); if (TTS.ok) { const u = new SpeechSynthesisUtterance(''); speechSynthesis.speak(u); } document.removeEventListener('pointerdown', wake, true); document.removeEventListener('keydown', wake, true); };
+  document.addEventListener('pointerdown', wake, true); document.addEventListener('keydown', wake, true);
   $('modal').addEventListener('click', e => { if (e.target === $('modal') && $('modal').querySelector('.mbox')) closeModal(); });
 });
 // 結算前在畫面上確認（不使用瀏覽器 confirm 對話框）
