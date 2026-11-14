@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>塞可斯桌遊 線上版</title>
+<title>塞可斯北特版 性教育桌遊</title>
 <style>
 :root{
   --bg:#120c24;--panel:#1d1638;--panel2:#271e4a;--line:rgba(255,255,255,.14);--text:#f8fafc;--muted:#cbd5e1;--dim:#94a3b8;--gold:#facc15;
@@ -43,6 +43,7 @@ input,select,textarea{font:inherit}
 .title-wrap{position:relative;display:flex;gap:32px;align-items:center;max-width:1000px;width:100%}
 .poster{flex:0 0 auto;width:min(300px,38vw);aspect-ratio:2/3;border-radius:20px;overflow:hidden;border:3px solid rgba(255,255,255,.25);box-shadow:0 30px 60px rgba(0,0,0,.6);transform:rotate(-3deg)}
 .logo{font-size:clamp(52px,10vw,104px);font-weight:900;line-height:1;letter-spacing:.06em;font-style:italic;color:#fff;text-shadow:4px 4px 0 #db2777,8px 8px 0 rgba(0,0,0,.45)}
+.logo .logo-ed{font-size:.36em;letter-spacing:.08em;margin-left:.25em;vertical-align:.55em;color:#fde047;text-shadow:3px 3px 0 #db2777,5px 5px 0 rgba(0,0,0,.45)}
 .logo small{display:block;font-size:.26em;letter-spacing:.2em;font-style:normal;text-shadow:none;color:#fbcfe8;margin-top:10px}
 .sub{color:var(--muted);font-size:16px;line-height:1.7;margin:16px 0 20px}
 .dots{display:flex;gap:8px;margin:14px 0}
@@ -341,7 +342,7 @@ input,select,textarea{font:inherit}
 <section id="scTitle">
   <div class="title-wrap">
     <div style="flex:1;min-width:0">
-      <div class="logo">塞可斯<small>性教育桌遊・線上版</small></div>
+      <div class="logo">塞可斯<span class="logo-ed">北特版</span><small>性教育桌遊・線上版</small></div>
       <div class="dots"><span style="background:var(--c-blue);color:var(--c-blue)"></span><span style="background:var(--c-yellow);color:var(--c-yellow)"></span><span style="background:var(--c-green);color:var(--c-green)"></span><span style="background:var(--c-red);color:var(--c-red)"></span><span style="background:#111;color:#a855f7;border:2px solid #a855f7"></span></div>
       <div class="sub">青春期、人際關係與身體界線。擲骰走地圖，停在哪個顏色就翻同色牌卡，完成挑戰就能拿金幣。<br>校園情境擴充題卡：等待、拒絕、身體界線、隱私與求助。</div>
       <div class="opt-row"><b>遊戲長度</b><span id="optRounds"></span></div>
@@ -379,7 +380,7 @@ input,select,textarea{font:inherit}
 
 <section id="scGame" class="hidden">
   <div class="g-head">
-    <div class="g-logo">塞可斯<small>性教育桌遊・線上版</small></div>
+    <div class="g-logo">塞可斯北特版<small>性教育桌遊・線上版</small></div>
     <div class="g-round" id="roundLabel">第 1 輪</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <span class="zoom-bar"><button id="zOut" title="縮小地圖">－</button><button id="zFit" title="地圖符合畫面">🔍</button><button id="zIn" title="放大地圖">＋</button></span>
@@ -1631,7 +1632,7 @@ function endGame() {
    ========================================================== */
 function openRules() {
   openModal(`<div class="mbox">
-    <div style="display:flex;justify-content:space-between;align-items:center"><h3>📖 塞可斯 規則說明</h3><button class="xbtn" id="mClose">✕</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3>📖 塞可斯北特版 規則說明</h3><button class="xbtn" id="mClose">✕</button></div>
     <h4>一場遊戲，五個階段</h4>
     <ol style="margin:0;padding-left:20px">
       <li>開場與約定（3–5 分鐘）</li><li>選棋子與排順序（約 2 分鐘）</li><li>規則與首輪示範（約 3 分鐘）</li><li>翻牌與挑戰（依活動時間）</li><li>結算與收尾（約 5 分鐘）</li>
